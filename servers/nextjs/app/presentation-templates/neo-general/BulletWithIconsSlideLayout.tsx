@@ -103,20 +103,8 @@ const BulletWithIconsSlideLayout: React.FC<BulletWithIconsSlideLayoutProps> = ({
 
                     {/* Content Container */}
                     <div className="flex flex-1">
-                        {/* Left Section - Image with Grid Pattern */}
+                        {/* Left Section - Image */}
                         <div className="flex-1 relative">
-                            {/* Grid Pattern Background */}
-                            <div className="absolute top-0 left-0 w-full h-full">
-                                <svg className="w-full h-full opacity-30" viewBox="0 0 200 200">
-                                    <defs>
-                                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--primary-color,#9333ea)" strokeWidth="0.5" />
-                                        </pattern>
-                                    </defs>
-                                    <rect width="100%" height="100%" fill="url(#grid)" />
-                                </svg>
-                            </div>
-
                             {/* Image Container */}
                             <div className="relative z-10 h-full flex items-center justify-center p-4">
                                 <div className="w-full max-w-md h-80 rounded-2xl overflow-hidden shadow-lg">

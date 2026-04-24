@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,10 +20,14 @@ interface PresentationModeProps {
   currentSlide: number;
 
   isFullscreen: boolean;
+  isEmbedded?: boolean;
   onFullscreenToggle: () => void;
   onExit: () => void;
   onSlideChange: (slideNumber: number) => void;
 }
+
+const BASE_WIDTH = 1280;
+const BASE_HEIGHT = 720;
 
 const PresentationMode: React.FC<PresentationModeProps> = ({
 
@@ -31,40 +35,48 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
   currentSlide,
 
   isFullscreen,
+  isEmbedded = false,
   onFullscreenToggle,
   onExit,
   onSlideChange,
 
 
 }) => {
-  if (slides === undefined || slides === null || slides.length === 0) {
-    return null;
-  }
+  const totalSlides = Array.isArray(slides) ? slides.length : 0;
+  const activeSlide = totalSlides > 0
+    ? Math.max(0, Math.min(currentSlide, totalSlides - 1))
+    : 0;
 
-  const [showSpeakerNotes, setShowSpeakerNotes] = useState(true);
+  const [showSpeakerNotes, setShowSpeakerNotes] = useState(!isEmbedded);
   const currentSpeakerNote = useMemo(
-    () => slides[currentSlide]?.speaker_note?.trim() || "",
-    [slides, currentSlide]
+    () => slides?.[activeSlide]?.speaker_note?.trim() || "",
+    [slides, activeSlide]
   );
-
-
-  const recomputeScale = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const padding = isFullscreen ? 0 : 64; // match p-8 when not fullscreen
-    const fullscreenMargin = isFullscreen ? 16 : 0; // small safety margin to prevent clipping
-    const availableWidth = Math.max(window.innerWidth - padding - fullscreenMargin, 0);
-    const availableHeight = Math.max(window.innerHeight - padding - fullscreenMargin, 0);
-    const baseW = 1280;
-    const baseH = 720;
-    const s = Math.min(availableWidth / baseW, availableHeight / baseH);
-
-  }, [isFullscreen]);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [embedScale, setEmbedScale] = useState(1);
 
   useEffect(() => {
-    recomputeScale();
-    window.addEventListener("resize", recomputeScale);
-    return () => window.removeEventListener("resize", recomputeScale);
-  }, [recomputeScale]);
+    if (!isEmbedded || !viewportRef.current) return;
+    const viewport = viewportRef.current;
+
+    const updateScale = () => {
+      const width = viewport.clientWidth;
+      const height = viewport.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      const nextScale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
+      setEmbedScale(nextScale > 0 ? nextScale : 1);
+    };
+
+    updateScale();
+    const resizeObserver = new ResizeObserver(updateScale);
+    resizeObserver.observe(viewport);
+    window.addEventListener("resize", updateScale);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
+  }, [isEmbedded]);
 
 
   // Modify the handleKeyPress to prevent default behavior
@@ -76,35 +88,44 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
         case "ArrowRight":
         case "ArrowDown":
         case " ": // Space key
-          if (currentSlide < slides.length - 1) {
-            onSlideChange(currentSlide + 1);
+          if (activeSlide < totalSlides - 1) {
+            onSlideChange(activeSlide + 1);
           }
           break;
         case "ArrowLeft":
         case "ArrowUp":
-          if (currentSlide > 0) {
-            onSlideChange(currentSlide - 1);
+          if (activeSlide > 0) {
+            onSlideChange(activeSlide - 1);
           }
           break;
         case "Escape":
+          if (isEmbedded) {
+            return;
+          }
           // If fullscreen is active, only exit fullscreen on first ESC. Second ESC exits present mode.
           if (document.fullscreenElement) {
-            try { document.exitFullscreen(); } catch (_) { }
+            try { document.exitFullscreen(); } catch { }
             return;
           }
           onExit();
           break;
         case "f":
         case "F":
+          if (isEmbedded) {
+            return;
+          }
           onFullscreenToggle();
           break;
         case "n":
         case "N":
+          if (isEmbedded) {
+            return;
+          }
           setShowSpeakerNotes((prev) => !prev);
           break;
       }
     },
-    [currentSlide, slides.length, onSlideChange, onExit, onFullscreenToggle, isFullscreen]
+    [activeSlide, totalSlides, onSlideChange, onExit, onFullscreenToggle, isEmbedded]
   );
 
   // Add both keydown and keyup listeners
@@ -136,18 +157,19 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
     const windowWidth = window.innerWidth;
 
     if (clickX < windowWidth / 3) {
-      if (currentSlide > 0) {
-        onSlideChange(currentSlide - 1);
+      if (activeSlide > 0) {
+        onSlideChange(activeSlide - 1);
       }
     } else if (clickX > (windowWidth * 2) / 3) {
-      if (currentSlide < slides.length - 1) {
-        onSlideChange(currentSlide + 1);
+      if (activeSlide < totalSlides - 1) {
+        onSlideChange(activeSlide + 1);
       }
     }
   };
 
   // Handle Escape key separately
   useEffect(() => {
+    if (isEmbedded) return;
     const handleEscKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) {
         onFullscreenToggle(); // Just toggle fullscreen, don't exit presentation
@@ -156,7 +178,7 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
 
     document.addEventListener("keydown", handleEscKey);
     return () => document.removeEventListener("keydown", handleEscKey);
-  }, [isFullscreen, onFullscreenToggle]);
+  }, [isFullscreen, onFullscreenToggle, isEmbedded]);
 
   return (
     <div
@@ -166,7 +188,7 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
       onClick={handleSlideClick}
     >
       {/* Controls - Only show when not in fullscreen */}
-      {!isFullscreen && (
+      {!isFullscreen && !isEmbedded && (
         <>
           <div className="presentation-controls absolute top-4 right-4 flex items-center gap-2 z-50">
             <Button
@@ -216,7 +238,7 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
             <span className="text-white"
               style={{ color: "var(--text-body-color,#000000)" }}
             >
-              {currentSlide + 1} / {slides.length}
+              {activeSlide + 1} / {totalSlides}
             </span>
             <Button
               variant="ghost"
@@ -224,9 +246,9 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
-                onSlideChange(currentSlide + 1);
+                onSlideChange(activeSlide + 1);
               }}
-              disabled={currentSlide === slides.length - 1}
+              disabled={activeSlide === totalSlides - 1}
               className="text-white hover:bg-white/20"
             >
               <ChevronRight className="h-5 w-5" style={{ color: "var(--text-body-color,#000000)" }} />
@@ -235,30 +257,84 @@ const PresentationMode: React.FC<PresentationModeProps> = ({
         </>
       )}
 
-      {/* Centered 16:9 stage for consistent alignment in normal + fullscreen modes */}
-      <div className={`flex-1 min-h-0 flex items-center justify-center ${isFullscreen ? "px-6 py-8 md:px-10 md:py-12" : "p-8"}`}>
-        <div
-          className="relative rounded-sm font-inter"
-          style={{
-            aspectRatio: "16 / 9",
-            width: isFullscreen
-              ? "min(90vw, calc(88vh * 16 / 9))"
-              : "min(calc(100vw - 4rem), calc((100vh - 4rem) * 16 / 9))",
-            maxHeight: isFullscreen ? "88vh" : "calc(100vh - 4rem)",
-          }}
-        >
-          {slides.length > 0 && slides.map((slide, index) => (
-            <div
-              key={slide.id}
-              className={index === currentSlide ? "h-full w-full" : "hidden h-full w-full"}
-            >
-              <V1ContentRender slide={slide} isEditMode={true} />
-            </div>
-          ))}
+      {isEmbedded && totalSlides > 1 && (
+        <div className="presentation-controls absolute bottom-3 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-full border border-black/10 bg-white/92 px-3 py-1.5 shadow-md backdrop-blur-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSlideChange(activeSlide - 1);
+            }}
+            disabled={activeSlide === 0}
+            className="h-7 w-7 text-gray-700 hover:bg-black/5"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-xs font-medium text-gray-700">
+            {activeSlide + 1} / {totalSlides}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSlideChange(activeSlide + 1);
+            }}
+            disabled={activeSlide === totalSlides - 1}
+            className="h-7 w-7 text-gray-700 hover:bg-black/5"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-      </div>
+      )}
 
-      {currentSpeakerNote && (
+      {isEmbedded ? (
+        <div ref={viewportRef} className="relative flex-1 min-h-0 overflow-hidden">
+          <div
+            className="absolute left-1/2 top-1/2"
+            style={{
+              width: BASE_WIDTH,
+              height: BASE_HEIGHT,
+              transform: `translate(-50%, -50%) scale(${embedScale})`,
+              transformOrigin: "center center",
+            }}
+          >
+            {totalSlides > 0 && slides.map((slide, index) => (
+              <div
+                key={slide.id}
+                className={index === activeSlide ? "h-full w-full overflow-hidden" : "hidden h-full w-full"}
+              >
+                <V1ContentRender slide={slide} isEditMode={false} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className={`flex-1 min-h-0 flex items-center justify-center ${isFullscreen ? "px-6 py-8 md:px-10 md:py-12" : "p-8"}`}>
+          <div
+            className="relative rounded-sm font-inter"
+            style={{
+              aspectRatio: "16 / 9",
+              width: isFullscreen
+                ? "min(90vw, calc(88vh * 16 / 9))"
+                : "min(calc(100vw - 4rem), calc((100vh - 4rem) * 16 / 9))",
+              maxHeight: isFullscreen ? "88vh" : "calc(100vh - 4rem)",
+            }}
+          >
+            {totalSlides > 0 && slides.map((slide, index) => (
+              <div
+                key={slide.id}
+                className={index === activeSlide ? "h-full w-full" : "hidden h-full w-full"}
+              >
+                <V1ContentRender slide={slide} isEditMode={true} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!isEmbedded && currentSpeakerNote && (
         <div className="presentation-controls absolute bottom-4 right-4 z-50">
           {showSpeakerNotes ? (
             <div className="w-[360px] max-w-[50vw] rounded-xl border border-black/10 bg-white/95 shadow-xl backdrop-blur-sm">

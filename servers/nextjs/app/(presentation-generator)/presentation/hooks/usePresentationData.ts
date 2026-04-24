@@ -16,7 +16,7 @@ export const usePresentationData = (
   const dispatch = useDispatch();
 
   const applyTheme = async (theme: Theme) => {
-    const element = document.getElementById('presentation-slides-wrapper')
+    const element = document.getElementById('presentation-slides-wrapper') ?? document.documentElement
     if (!element) return;
     if (!theme || !theme.data) { return; }
     if (!theme.data.colors['graph_0']) { return; }

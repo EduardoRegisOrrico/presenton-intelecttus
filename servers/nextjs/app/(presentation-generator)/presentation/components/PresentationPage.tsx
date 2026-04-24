@@ -52,6 +52,7 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
 
   const {
     isPresentMode,
+    isEmbedMode,
     stream,
     handleSlideClick,
     toggleFullscreen,
@@ -94,6 +95,7 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
         slides={presentationData?.slides!}
         currentSlide={selectedSlide}
         isFullscreen={isFullscreen}
+        isEmbedded={isEmbedMode}
         onFullscreenToggle={toggleFullscreen}
         onExit={handlePresentExit}
         onSlideChange={onSlideChange}

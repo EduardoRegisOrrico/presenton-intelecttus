@@ -11,6 +11,7 @@ export const usePresentationNavigation = (
   const searchParams = useSearchParams();
 
   const isPresentMode = searchParams.get("mode") === "present";
+  const isEmbedMode = searchParams.get("embed") === "1";
   const stream = searchParams.get("stream");
   const currentSlide = parseInt(
     searchParams.get("slide") || `${selectedSlide}` || "0"
@@ -39,21 +40,24 @@ export const usePresentationNavigation = (
 
   const handlePresentExit = useCallback(() => {
     setIsFullscreen(false);
+    if (isEmbedMode) return;
     router.push(`/presentation?id=${presentationId}`);
-  }, [router, presentationId, setIsFullscreen]);
+  }, [router, presentationId, setIsFullscreen, isEmbedMode]);
 
   const handleSlideChange = useCallback((newSlide: number, presentationData: any) => {
     if (newSlide >= 0 && newSlide < presentationData?.slides.length!) {
       setSelectedSlide(newSlide);
+      const embedParam = isEmbedMode ? "&embed=1" : "";
       router.push(
-        `/presentation?id=${presentationId}&mode=present&slide=${newSlide}`,
+        `/presentation?id=${presentationId}&mode=present&slide=${newSlide}${embedParam}`,
         { scroll: false }
       );
     }
-  }, [router, presentationId, setSelectedSlide]);
+  }, [router, presentationId, setSelectedSlide, isEmbedMode]);
 
   return {
     isPresentMode,
+    isEmbedMode,
     stream,
     currentSlide,
     handleSlideClick,
