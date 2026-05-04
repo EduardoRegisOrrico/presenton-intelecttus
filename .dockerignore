@@ -1,5 +1,11 @@
 .git
 .gitignore
+electron
+app_data
+node_modules
+**/node_modules
+**/.next
+**/__pycache__
 
 servers/fastapi/tmp
 servers/fastapi/debug
